@@ -1,10 +1,8 @@
-### A Pluto.jl notebook ###
-# v0.17.5
 
+```julia
 using Markdown
 using InteractiveUtils
 
-# ╔═╡ 5ed627ad-1c4f-4050-a0d8-297222e52e54
 begin
     using Statistics        # to use mean()
     using Printf            # to use @printf()
@@ -15,7 +13,6 @@ begin
     using Random            # to use rand!() inplace operation
 end
 
-# ╔═╡ 86e5acd8-7dac-4cae-8e58-3fe80d21ec09
 md"## 时间按变化步长推进
 变化步长最主要的思想就是，从仿真一开始就通过从分布取样(sample from the distribution)，确定各个元件的使用寿命，从而将仿真过程的内层循环次数减少。
 
@@ -54,7 +51,7 @@ begin
     # const LIFE_LIMIT = 20_0000
     const STATE_NUM_NODE = 6
     const k = 3
-    const w = 3_0000
+	const w = 3_0000
     ## switch A
     const λA = 1 / 5.90e4             # hour
     const PA0 = exp(-λA * TIME_STEP)
@@ -84,18 +81,18 @@ function initialize!(NUM_NODE, gA, gB, gN, gR)
     fill!(gA, 0)  # 状态全清0，代表正常
     fill!(gB, 0)
     # 节点状态均为完好
-    fill!(gN, 0)
-    fill!(gR, 0)
+	fill!(gN, 0)
+	fill!(gR, 0)
     # 随机选取1个节点为主节点
     master_node::Int8 = 1#rand(1:NUM_NODE)
-    gR[master_node] = 1
+	gR[master_node] = 1
     return master_node
 end
 
 
 # ╔═╡ 5ec48cc2-cb7d-4e42-b1cf-56afacccc768
 function estimate_switch_state!(NUM_NODE, gA, gB, lifeA, lifeB)
-    # 这里相当于是假定，所有的switch必然会失效
+	# 这里相当于是假定，所有的switch必然会失效
     distrA = Exponential(1 / λA)
     distrB = Exponential(1 / λB)
     rand!(distrA, lifeA)  # 生成服从指数分布的随机数
@@ -109,8 +106,12 @@ function estimate_switch_state!(NUM_NODE, gA, gB, lifeA, lifeB)
     nothing
 end
 
+# ╔═╡ 190eed91-a3c6-440f-b042-e80c70b1bc3f
+md"#### Estimate Node Performance State
+The code here is not obvious, you may refer to the `fixed-timestep` version of this part for better understanding."
+
 # ╔═╡ b2313a28-3e93-4233-96aa-226c13c9bfdb
-function estimate_node_state!(NUM_NODE, gA, gB, gN, lifeA, lifeB, switch_tag, idx)
+function estimate_node_performance_state!(NUM_NODE, gA, gB, gN, lifeA, lifeB, switch_tag, idx)
     if switch_tag
         # 刚刚坏掉的是switchA[idx]，需要重新计算当前的节点状态
         if gA[idx] == 0  # 这条语句不会被执行
@@ -178,10 +179,15 @@ md"#### Role State Transition Equation
 
 # ╔═╡ e44a2cf9-9fd3-44e6-828c-ba969ff632e1
 md"#### Reselect Master
-The master reselection should based on both node preformance state and role state."
+The master reselection should based on both node preformance state and role state.
 
-# ╔═╡ e22abba0-b15d-4ee4-9f0a-4bea779d2177
-function reselect_master!(NUM_NODE, gN, gR, master_node)  # 1
+Here I discard the `reselect_master!()` function, and integrate its code into `estimate_role_state!()` for better compatibility considering the possible use of `gR` vector."
+
+# ╔═╡ 2af9a147-3785-4ff2-a940-4079be53d6cd
+function estimate_node_role_state!(NUM_NODE, gN, gR, master_node)
+	# role state transition process is based on the formula given above
+	# role vector: gR
+	# node (performance) vector: gN
     if !ok_for_master(gN[master_node])
         # 说明主节点坏掉了
         alert_mintime = 1.0 # rand() [0.0,1)
@@ -214,47 +220,37 @@ function reselect_master!(NUM_NODE, gN, gR, master_node)  # 1
         #     # 也就是说现在信号是好的，不需要重选
     end
     master_node
-end
 
-# ╔═╡ 2af9a147-3785-4ff2-a940-4079be53d6cd
-function estimate_role_state!(NUM_NODE, gN, gR, master_node)
-    # role state transition process is based on the formula given above
-    # role vector: gR
-    # node (performance) vector: gN
-    # if !ok_for_master(gN[master_node])
-    master_node = reselect_master!(NUM_NODE, gN, gR, master_node)
 end
 
 # ╔═╡ 029505db-edcb-46e8-accd-a0a20439efbe
 function estimate_system_state!(NUM_NODE, gN, master_node)
     QPF::Int8 = QSO::Int8 = QDM::Int8 = QMO::Int8 = QDN::Int8 = QFB::Int8 = 0
-    Gsys::Int8 = 1 # wtf 这里见鬼了，Gsys存在没有覆盖到的状态
-    @inbounds for elem in gN
-        elem == 0 && (QPF += 1; continue)
-        elem == 1 && (QSO += 1; continue)
-        elem == 2 && (QDM += 1; continue)
-        elem == 3 && (QMO += 1; continue)
-        elem == 4 && (QDN += 1; continue)
-        elem == 5 && (QFB += 1; continue)
-    end
-    if QFB >= 1 || QMO >= 2 || QPF + QMO + QDM == 0 || (QPF + QSO + 1((QMO + QDM) > 0)) < k
-        Gsys = 1
-    elseif QFB == 0 && ((QMO == 1 && QPF + QSO >= k - 1) || ((QMO == 0 && QPF >= 1 && QPF + QSO >= k) || (QMO == 0 && QPF == 0 && QDM >= 1 && QSO >= k - 1)))
-        Gsys = 2
-        # 这里的条件文本没有给清楚，但大致能猜到C5 && (C6 || C7)
-    elseif QFB + QMO == 0 && (QPF >= 1 && (QPF + QSO == k - 1) && QDM >= 1)
-        if gN[master_node] == 2
-            # if one of gDM is selected as master
-            Gsys = 3
-        elseif gN[master_node] == 0
-            # if one of gPF is selected as master
-            # fail to satisfy valid node limit k
-            Gsys = 4
-        end
-    else
-        Gsys = 0  # Gys node defined
-    end
-    return Gsys
+	Gsys::Int8 = 1 # wtf 这里见鬼了，Gsys存在没有覆盖到的状态
+	@inbounds for elem in gN
+		elem == 0 && (QPF += 1; continue)
+		elem == 1 && (QSO += 1; continue)
+		elem == 2 && (QDM += 1; continue)
+		elem == 3 && (QMO += 1; continue)
+		elem == 4 && (QDN += 1; continue)
+		elem == 5 && (QFB += 1; continue)
+	end
+	if QFB >= 1 || QMO >= 2 || QPF + QMO + QDM == 0 || (QPF + QSO + 1((QMO + QDM) > 0)) < k
+		Gsys = 1
+	elseif QFB == 0 && ((QMO == 1 && QPF + QSO >= k - 1) || ((QMO == 0 && QPF >= 1 && QPF + QSO >= k) || (QMO == 0 && QPF == 0 && QDM >= 1 && QSO >= k - 1)))
+		Gsys = 2
+		# 这里的条件文本没有给清楚，但大致能猜到C5 && (C6 || C7)
+	elseif QFB + QMO == 0 && (QPF >= 1 && (QPF + QSO == k - 1) && QDM >= 1)
+		if gN[master_node] == 2
+			# if one of gDM is selected as master
+			Gsys = 3  
+		elseif gN[master_node] == 0
+			# if one of gPF is selected as master
+			# fail to satisfy valid node limit k
+			Gsys = 4  
+		end
+	end
+	return Gsys
 end
 
 # ╔═╡ 926fdff5-3cec-4bc3-9937-f81f71dd25c7
@@ -265,9 +261,9 @@ md"#### 仿真执行
 - loop: iter switches, select current `min_life`
   - find `min_life`, find its `index` and switch type `X`
   - if `min_life` > `LIFE_LIMIT`, break loop, stop simulation, return previous `life_counter`
-  - else, `estimate_node_state!()`
+  - else, `estimate_node_performance_state!()`
   - set corresponding `lifeX[index]` to `+Inf`, avoid repeat selection in the following simulation iterations
-  - `reselect_master!()`
+  - `estimate_node_role_state!()`, include the master reselection process
   - `estimate_system_state!()`
   - update `life_counter`
 - return `life_counter`
@@ -283,11 +279,11 @@ function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
         minA, idxA = findmin(lifeA)
         minB, idxB = findmin(lifeB)
         min_life = min(minA, minB)
-
-        min_life > LIFE_LIMIT && (min_life = LIFE_LIMIT; break)  # 筛选到的寿命大于了限定的最大值
-        switch_tag, idx = (min_life == minA) ? (true, idxA) : (false, idxB)
-        # switch_tag=true => minA, switch_tag=false => minB
-        estimate_node_state!(NUM_NODE, gA, gB, gN, lifeA, lifeB, switch_tag, idx)
+		
+		min_life > LIFE_LIMIT && (min_life=LIFE_LIMIT; break)  # 筛选到的寿命大于了限定的最大值
+		switch_tag, idx = (min_life == minA) ? (true, idxA) : (false, idxB)
+		# switch_tag=true => minA, switch_tag=false => minB
+        estimate_node_performance_state!(NUM_NODE, gA, gB, gN, lifeA, lifeB, switch_tag, idx)
         if switch_tag
             lifeA[idxA] = +Inf
         else
@@ -295,8 +291,8 @@ function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
         end
         # start from here, 2 methods for variable time step
         # master_node = reselect_master!(NUM_NODE, gN, master_node)
-        # gR = rand()
-        master_node = estimate_role_state!(NUM_NODE, gN, gR, master_node)
+		# gR = rand()
+        master_node = estimate_node_role_state!(NUM_NODE, gN, gR, master_node)
         Gsys::Int8 = estimate_system_state!(NUM_NODE, gN, master_node)
         if Gsys == 2 || Gsys == 3
             # life_counter = max(min_life, life_counter)
@@ -304,7 +300,7 @@ function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
         else
             # life_counter = max(min_life, life_counter)
             # state_system = true
-            break
+			break
         end
     end
     # @printf("\ngA:")
@@ -323,6 +319,13 @@ function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
     life_counter
 end
 
+# ╔═╡ 6a2c4add-cf6e-41f5-abb3-a5cc2470c7d4
+md"#### Simulation Executor
+
+`julia_main_varia()` is not exactly the **real main** function. 
+
+Typically, a function called `real_main()` would possibly be chosen as the **real main** function, but here for convenience, I just run the code in global scope out of a `real_main()` function."
+
 # ╔═╡ 680b3e22-6d04-41b1-83ec-2e6754d6016f
 function julia_main_varia(NUM_NODE::Int8, avg_life_max, avg_life_idx, reliability_max, reliability_idx)
     # variables definition for each simulation
@@ -333,57 +336,67 @@ function julia_main_varia(NUM_NODE::Int8, avg_life_max, avg_life_idx, reliabilit
     system_life = zeros(Float64, NUM_SYSTEM)
     lifeA = zeros(NUM_NODE)
     lifeB = zeros(NUM_NODE)
-    reliability_counter = 0
-
+	reliability_counter = 0
+	
     # run simulation
     @inbounds for i = 1:NUM_SYSTEM
         # @printf("\nsystem number:%8d\n", i)
         system_life[i] = simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
-        system_life[i] > w && (reliability_counter += 1)
+		system_life[i] > w && (reliability_counter += 1)
         # @printf("system life:%16.4f\n", system_life[i])
     end
     # writedlm("out/csv/sys$NUM_SYSTEM-lim$LIFE_LIMIT-variable.csv", system_life, ',')
     # readdlm("out/csv/FileName.csv",',',Int32)
-    avg_life = mean(system_life)
-    reliability = reliability_counter / NUM_SYSTEM
-    @printf("NUM_NODE:%3d\tAvg: %12.6f\tReliability: %7.3f%%\n", NUM_NODE, avg_life, reliability * 100)
-    avg_life_max = max(avg_life_max, avg_life)
-    avg_life_max == avg_life && (avg_life_idx = NUM_NODE)
-    reliability_max = max(reliability_max, reliability)
-    reliability_max == reliability && (reliability_idx = NUM_NODE)
+	avg_life = mean(system_life)
+	reliability = reliability_counter / NUM_SYSTEM
+    @printf("NUM_NODE:%3d\tAvg: %12.6f\tReliability: %7.3f%%\n",NUM_NODE, avg_life,  reliability * 100)
+	avg_life_max = max(avg_life_max, avg_life)
+	avg_life_max == avg_life && (avg_life_idx = NUM_NODE)
+	reliability_max = max(reliability_max, reliability)
+	reliability_max == reliability && (reliability_idx = NUM_NODE)
     # p = histogram(system_life, bins=min(NUM_SYSTEM,256), label="$(NUM_SYSTEM) samples")
     # p = histogram!(legend=:topright, bar_edges=true)
     # p = histogram!(title="Variable Time Step Simulation")
     # savefig(p, "out/figure/sys$NUM_SYSTEM-lim$LIFE_LIMIT-variable.png")
-    return avg_life_max, avg_life_idx, reliability_max, reliability_idx
+	return avg_life_max, avg_life_idx, reliability_max, reliability_idx
 end
+
+# ╔═╡ 54ab68ae-a358-43c2-91b2-618178ea227b
+md"### Execute with Fixed NUM_NODE
+The fixed `NUM_NODE` is 10, simply for testing the correctness."
 
 # ╔═╡ fb90255d-b546-4bfd-99f3-a5e3d0f529c1
-@time begin
-    avg_life_max = 0.0
-    avg_life_idx = 0
-    reliability_max = 0.0
-    reliability_idx = 0
-    i = 10
-    avg_life_max, avg_life_idx, reliability_max, reliability_idx = julia_main_varia(convert(Int8, i), avg_life_max, avg_life_idx, reliability_max, reliability_idx)
+@with_terminal @time begin
+	avg_life_max=0.0
+	avg_life_idx=0
+	reliability_max=0.0
+	reliability_idx=0
+	i::Int8 = 10
+	avg_life_max, avg_life_idx, reliability_max, reliability_idx = julia_main_varia(i, avg_life_max, avg_life_idx, reliability_max, reliability_idx)
 end
 
-# ╔═╡ 0662362e-2115-4158-b7b9-81802b00d8cf
-# begin
-# 	avg_life_max=0.0
-# 	avg_life_idx=0
-# 	reliability_max=0.0
-# 	reliability_idx=0
-# 	@with_terminal @time for i::Int8=3:20
-# 		avg_life_max, avg_life_idx, reliability_max, reliability_idx = julia_main_varia(i, avg_life_max, avg_life_idx, reliability_max, reliability_idx)
-# 	end
-# end
+# ╔═╡ d3d04a6f-bed6-413d-9f44-7547f7487765
+md"### Execute with A Range of NUM_NODE
+This part is designated for collecting problem results, including the most average MTTF, and the greatest reliability.
 
-# ╔═╡ 9ae4b66f-4e17-4440-ae2c-43bb71c22633
-# @with_terminal @printf("MTTF: (%3d, %12.6f)\nReliability: (%3d, %7.3f%%)",avg_life_idx,avg_life_max,reliability_idx,reliability_max)
+**Warning**: The results may possibly not correct, some modifications are needed within the function `estimate_node_role_state!()`. 
+
+**Notice**: Currently, the function `estimate_node_role_state!()` is just a rename of the discarded `reselect_master!()` function, and you may need to add code for solving the node role transition problem according to the *Role State Transition Equation* given above."
+
+# ╔═╡ 0662362e-2115-4158-b7b9-81802b00d8cf
+begin
+	avg_life_max=0.0
+	avg_life_idx=0
+	reliability_max=0.0
+	reliability_idx=0
+	@with_terminal @time for i::Int8=3:20
+		avg_life_max, avg_life_idx, reliability_max, reliability_idx = julia_main_varia(i, avg_life_max, avg_life_idx, reliability_max, reliability_idx)
+	end
+end
 
 # ╔═╡ 53eea4fb-418f-4bcb-bb51-45a84e55eb76
-# @with_terminal println("MTTF: $avg_life_idx\t$avg_life_max")
+@with_terminal println("MTTF: $avg_life_idx\t$avg_life_max")
 
 # ╔═╡ 37f916dd-7059-45fc-80d0-28b9caf1ecfe
-# @with_terminal println("R(w): $reliability_idx\t$(reliability_max*100)%")
+@with_terminal println("R(w): $reliability_idx\t$(reliability_max*100)%")
+```
