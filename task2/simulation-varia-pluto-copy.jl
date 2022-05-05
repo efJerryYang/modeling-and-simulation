@@ -81,13 +81,13 @@ md"#### 初始化运行
 
 # ╔═╡ 137b8727-37aa-4909-9308-1785d84361fd
 function initialize!(NUM_NODE, gA, gB, gN, gR)
-    fill!(gA, 0)  # 状态全清0，代表正常
+    fill!(gA, 0)
     fill!(gB, 0)
-    # 节点状态均为完好
+
 	fill!(gN, 0)
 	fill!(gR, 0)
-    # 随机选取1个节点为主节点
-    master_node::Int8 = 1#rand(1:NUM_NODE)
+
+	master_node::Int8 = 1#rand(1:NUM_NODE)
 	gR[master_node] = 1
     return master_node
 end
@@ -95,10 +95,9 @@ end
 
 # ╔═╡ 5ec48cc2-cb7d-4e42-b1cf-56afacccc768
 function estimate_switch_state!(NUM_NODE, gA, gB, lifeA, lifeB)
-	# 这里相当于是假定，所有的switch必然会失效
     distrA = Exponential(1 / λA)
     distrB = Exponential(1 / λB)
-    rand!(distrA, lifeA)  # 生成服从指数分布的随机数
+    rand!(distrA, lifeA) 
     rand!(distrB, lifeB)
     @inbounds for i = 1:NUM_NODE
         tolA = rand() * (1 - PA0)
@@ -116,9 +115,7 @@ The code here is not obvious, you may refer to the `fixed-timestep` version of t
 # ╔═╡ b2313a28-3e93-4233-96aa-226c13c9bfdb
 function estimate_node_performance_state!(NUM_NODE, gA, gB, gN, lifeA, lifeB, switch_tag, idx)
     if switch_tag
-        # 刚刚坏掉的是switchA[idx]，需要重新计算当前的节点状态
-        if gA[idx] == 0  # 这条语句不会被执行
-        elseif gA[idx] == 1
+        if gA[idx] == 1
             lifeB[idx] != +Inf && (gN[idx] = 1; return nothing)
             gB[idx] == 1 && (gN[idx] = 5; return nothing)
             gB[idx] == 2 && (gN[idx] = 1; return nothing)
@@ -132,9 +129,7 @@ function estimate_node_performance_state!(NUM_NODE, gA, gB, gN, lifeA, lifeB, sw
             gB[idx] == 2 && (gN[idx] = 4; return nothing)
         end
     else
-        if gB[idx] == 0
-            # 什么也不做，因为这条语句不可能被执行
-        elseif gB[idx] == 1
+        if gB[idx] == 1
             lifeA[idx] != +Inf && (gN[idx] == 3; return nothing)
             gA[idx] == 1 && (gN[idx] = 5; return nothing)
             gA[idx] == 2 && (gN[idx] = 3; return nothing)
@@ -229,7 +224,7 @@ end
 # ╔═╡ 029505db-edcb-46e8-accd-a0a20439efbe
 function estimate_system_state!(NUM_NODE, gN, master_node)
     QPF::Int8 = QSO::Int8 = QDM::Int8 = QMO::Int8 = QDN::Int8 = QFB::Int8 = 0
-	Gsys::Int8 = 2 # wtf 这里见鬼了，Gsys存在没有覆盖到的状态
+	Gsys::Int8 = 2
 	@inbounds for elem in gN
 		elem == 0 && (QPF += 1; continue)
 		elem == 1 && (QSO += 1; continue)
@@ -251,16 +246,11 @@ function estimate_system_state!(NUM_NODE, gN, master_node)
 		Gsys = 1
 	elseif C5 && (C6 || C7)
 		Gsys = 2
-		# 这里的条件文本没有给清楚，但大致能猜到C5 && (C6 || C7)
 	elseif C8 && C9
 		cond = QDM / (QDM + QPF)
-		# if gN[master_node] == 2
 		if rand() < cond
-			# if one of gDM is selected as master
 			Gsys = 3  
 		else
-			# if one of gPF is selected as master
-			# fail to satisfy valid node limit k
 			Gsys = 4  
 		end
 	end
@@ -289,47 +279,27 @@ function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
     state_system = false
     life_counter::Float64 = 0
     estimate_switch_state!(NUM_NODE, gA, gB, lifeA, lifeB)
-    @inbounds for i = 1:2*NUM_NODE # Todo: more conditions should be added here
+    @inbounds for i = 1:2*NUM_NODE
         minA, idxA = findmin(lifeA)
         minB, idxB = findmin(lifeB)
         min_life = min(minA, minB)
 		
-		min_life > LIFE_LIMIT && (min_life=LIFE_LIMIT; break)  # 筛选到的寿命大于了限定的最大值
+		min_life > LIFE_LIMIT && (min_life=LIFE_LIMIT; break) 
+		
 		switch_tag, idx = (min_life == minA) ? (true, idxA) : (false, idxB)
-		# switch_tag=true => minA, switch_tag=false => minB
         estimate_node_performance_state!(NUM_NODE, gA, gB, gN, lifeA, lifeB, switch_tag, idx)
         if switch_tag
             lifeA[idxA] = +Inf
         else
             lifeB[idxB] = +Inf
         end
-        # start from here, 2 methods for variable time step
-        # master_node = reselect_master!(NUM_NODE, gN, master_node)
-		# gR = rand()
-        # master_node = estimate_node_role_state!(NUM_NODE, gN, gR, master_node)
         Gsys::Int8 = estimate_system_state!(NUM_NODE, gN, master_node)
         if Gsys == 2 || Gsys == 3
-            # life_counter = max(min_life, life_counter)
             life_counter = min_life
         else
-            # life_counter = max(min_life, life_counter)
-            # state_system = true
 			break
         end
     end
-    # @printf("\ngA:")
-    # for i = 1:NUM_NODE
-    #     @printf("%3d", gA[i])
-    # end
-    # @printf("\ngB:")
-    # for i = 1:NUM_NODE
-    #     @printf("%3d", gB[i])
-    # end
-    # @printf("\ngN:")
-    # for i = 1:NUM_NODE
-    #     @printf("%3d", gN[i])
-    # end
-    # @printf("\nGsys:%3d\tQPF%3d\tQSO%3d\tQDM%3d\tQMO%3d\tQDN%3d\tQFB%3d\n", Gsys, QPF, QSO, QDM, QMO, QDN, QFB)
     life_counter
 end
 
@@ -342,7 +312,6 @@ Typically, a function called `real_main()` would possibly be chosen as the **rea
 
 # ╔═╡ 680b3e22-6d04-41b1-83ec-2e6754d6016f
 function julia_main_varia(NUM_NODE::Int8, avg_life_max, avg_life_idx, reliability_max, reliability_idx)
-    # variables definition for each simulation
     gA = zeros(Int8, NUM_NODE)
     gB = zeros(Int8, NUM_NODE)
     gN = zeros(Int8, NUM_NODE)
@@ -352,15 +321,13 @@ function julia_main_varia(NUM_NODE::Int8, avg_life_max, avg_life_idx, reliabilit
     lifeB = zeros(NUM_NODE)
 	reliability_counter = 0
 	
-    # run simulation
     @inbounds for i = 1:NUM_SYSTEM
         # @printf("\nsystem number:%8d\n", i)
         system_life[i] = simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
 		system_life[i] > w && (reliability_counter += 1)
         # @printf("system life:%16.4f\n", system_life[i])
     end
-    # writedlm("out/csv/sys$NUM_SYSTEM-lim$LIFE_LIMIT-variable.csv", system_life, ',')
-    # readdlm("out/csv/FileName.csv",',',Int32)
+
 	avg_life = mean(system_life)
 	reliability = reliability_counter / NUM_SYSTEM
     @printf("NUM_NODE:%3d\tAvg: %12.6f\tReliability: %7.3f%%\n",NUM_NODE, avg_life,  reliability * 100)
@@ -368,10 +335,6 @@ function julia_main_varia(NUM_NODE::Int8, avg_life_max, avg_life_idx, reliabilit
 	avg_life_max == avg_life && (avg_life_idx = NUM_NODE)
 	reliability_max = max(reliability_max, reliability)
 	reliability_max == reliability && (reliability_idx = NUM_NODE)
-    # p = histogram(system_life, bins=min(NUM_SYSTEM,256), label="$(NUM_SYSTEM) samples")
-    # p = histogram!(legend=:topright, bar_edges=true)
-    # p = histogram!(title="Variable Time Step Simulation")
-    # savefig(p, "out/figure/sys$NUM_SYSTEM-lim$LIFE_LIMIT-variable.png")
 	return avg_life_max, avg_life_idx, reliability_max, reliability_idx
 end
 
@@ -1423,7 +1386,7 @@ version = "0.9.1+5"
 # ╟─1c0f6a74-d178-4fe9-81cf-e936018d827d
 # ╟─a2592eff-4763-4a8f-ac38-46b1b34bb0fa
 # ╟─e44a2cf9-9fd3-44e6-828c-ba969ff632e1
-# ╠═2af9a147-3785-4ff2-a940-4079be53d6cd
+# ╟─2af9a147-3785-4ff2-a940-4079be53d6cd
 # ╠═029505db-edcb-46e8-accd-a0a20439efbe
 # ╟─926fdff5-3cec-4bc3-9937-f81f71dd25c7
 # ╠═7e5a32c8-da2d-4e4f-8a72-cf9012b922cb
