@@ -46,7 +46,7 @@ md"### 常量参数
 begin
     # constant parameters
     ## system 
-    const NUM_SYSTEM = 30_0000
+    const NUM_SYSTEM = 10_0000
     # const NUM_SYSTEM = 10_0000
     # const NUM_NODE = 10
     const TIME_STEP = 1               # 1 hour
@@ -229,7 +229,7 @@ end
 # ╔═╡ 029505db-edcb-46e8-accd-a0a20439efbe
 function estimate_system_state!(NUM_NODE, gN, master_node)
     QPF::Int8 = QSO::Int8 = QDM::Int8 = QMO::Int8 = QDN::Int8 = QFB::Int8 = 0
-	Gsys::Int8 = 1 # wtf 这里见鬼了，Gsys存在没有覆盖到的状态
+	Gsys::Int8 = 2 # wtf 这里见鬼了，Gsys存在没有覆盖到的状态
 	@inbounds for elem in gN
 		elem == 0 && (QPF += 1; continue)
 		elem == 1 && (QSO += 1; continue)
@@ -238,16 +238,27 @@ function estimate_system_state!(NUM_NODE, gN, master_node)
 		elem == 4 && (QDN += 1; continue)
 		elem == 5 && (QFB += 1; continue)
 	end
-	if QFB >= 1 || QMO >= 2 || QPF + QMO + QDM == 0 || (QPF + QSO + 1((QMO + QDM) > 0)) < k
+	C1::Bool = (QFB >= 1)
+	C2::Bool = (QMO >= 2)
+	C3::Bool = (QPF + QMO + QDM == 0)
+	C4::Bool = ((QPF + QSO + 1((QMO + QDM) > 0)) < k)
+	C5::Bool = (QFB == 0)
+	C6::Bool = (QMO == 1 && QPF + QSO >= k - 1)
+	C7::Bool = ((QMO == 0 && QPF >= 1 && QPF + QSO >= k) || (QMO == 0 && QPF == 0 && QDM >= 1 && QSO >= k - 1))
+	C8::Bool = (QFB + QMO == 0)
+	C9::Bool = (QPF >= 1 && (QPF + QSO == k - 1) && QDM >= 1)
+	if C1 || C2 || C3 || C4
 		Gsys = 1
-	elseif QFB == 0 && ((QMO == 1 && QPF + QSO >= k - 1) || ((QMO == 0 && QPF >= 1 && QPF + QSO >= k) || (QMO == 0 && QPF == 0 && QDM >= 1 && QSO >= k - 1)))
+	elseif C5 && (C6 || C7)
 		Gsys = 2
 		# 这里的条件文本没有给清楚，但大致能猜到C5 && (C6 || C7)
-	elseif QFB + QMO == 0 && (QPF >= 1 && (QPF + QSO == k - 1) && QDM >= 1)
-		if gN[master_node] == 2
+	elseif C8 && C9
+		cond = QDM / (QDM + QPF)
+		# if gN[master_node] == 2
+		if rand() < cond
 			# if one of gDM is selected as master
 			Gsys = 3  
-		elseif gN[master_node] == 0
+		else
 			# if one of gPF is selected as master
 			# fail to satisfy valid node limit k
 			Gsys = 4  
@@ -295,7 +306,7 @@ function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
         # start from here, 2 methods for variable time step
         # master_node = reselect_master!(NUM_NODE, gN, master_node)
 		# gR = rand()
-        master_node = estimate_node_role_state!(NUM_NODE, gN, gR, master_node)
+        # master_node = estimate_node_role_state!(NUM_NODE, gN, gR, master_node)
         Gsys::Int8 = estimate_system_state!(NUM_NODE, gN, master_node)
         if Gsys == 2 || Gsys == 3
             # life_counter = max(min_life, life_counter)
