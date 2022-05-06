@@ -297,6 +297,7 @@ function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
         if Gsys == 2 || Gsys == 3
             life_counter = min_life
         else
+            life_counter = min_life
             break
         end
     end
@@ -330,7 +331,7 @@ function julia_main_varia(NUM_NODE::Int8, avg_life_max, avg_life_idx, reliabilit
 
     avg_life = mean(system_life)
     reliability = reliability_counter / NUM_SYSTEM
-    @printf("NUM_NODE:%3d\tAvg: %12.6f\tReliability: %7.3f%%\n", NUM_NODE, avg_life, reliability * 100)
+    @printf("NUM_NODE:%3d\tMTTF: %12.6f\t\tReliability: %7.3f%%\n", NUM_NODE, avg_life, reliability * 100)
     avg_life_max = max(avg_life_max, avg_life)
     avg_life_max == avg_life && (avg_life_idx = NUM_NODE)
     reliability_max = max(reliability_max, reliability)
@@ -368,9 +369,11 @@ function real_main()
     end
 
     # ╔═╡ 53eea4fb-418f-4bcb-bb51-45a84e55eb76
-    println("MTTF: $avg_life_idx\t$avg_life_max")
+    @printf("MTTF: %3d%16.4f\n", avg_life_idx, avg_life_max)
+    # println("MTTF: $avg_life_idx\t$avg_life_max")
 
     # ╔═╡ 37f916dd-7059-45fc-80d0-28b9caf1ecfe
-    println("R(w): $reliability_idx\t$(reliability_max*100)%")
+    @printf("R(w): %3d%15.2f%%\n", reliability_idx, reliability_max * 100)
+    # println("R(w): $reliability_idx\t$(reliability_max*100)%")
 end
 real_main()

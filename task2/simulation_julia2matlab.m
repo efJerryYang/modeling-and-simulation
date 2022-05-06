@@ -5,7 +5,7 @@ function main()
     global lambda_A PA0 PEA1 PEA2 PEA3
     global lambda_B PB0 PEB1 PEB2
 
-    NUM_SYSTEM = 500000;
+    NUM_SYSTEM = 100000;
     TIME_STEP = 1;
     LIFE_LIMIT = 200000;
     STATE_NUM_NODE = 6;
@@ -35,13 +35,13 @@ function main()
 end
 
 function [avg_life_max, avg_life_idx, reliability_max, reliability_idx] = julia_main_varia(NUM_NODE, avg_life_max, avg_life_idx, reliability_max, reliability_idx)
-    system_life = zeros(500000, 1);
+    system_life = zeros(100000, 1);
     % lifeA = zeros(NUM_NODE);
     % lifeB = zeros(NUM_NODE);
     reliability_counter = 0;
     w = 30000;
 
-    for i = 1:500000
+    for i = 1:100000
         system_life(i) = simulate_variable_timestep(NUM_NODE);
 
         if system_life(i) >= w
@@ -51,20 +51,19 @@ function [avg_life_max, avg_life_idx, reliability_max, reliability_idx] = julia_
     end
 
     avg_life = mean(system_life);
-    reliability = reliability_counter / 500000;
+    reliability = reliability_counter / 100000;
     fprintf("NUM_NODE:%3d\tMTTF: %12.6f\tReliability: %7.3f%%\n", NUM_NODE, avg_life, reliability * 100)
     avg_life_max = max(avg_life_max, avg_life);
 
     if avg_life_max == avg_life
         avg_life_idx = NUM_NODE;
     end
-
+    
     reliability_max = max(reliability_max, reliability);
 
     if reliability_max == reliability
         reliability_idx = NUM_NODE;
     end
-
 end
 
 function [life_counter] = simulate_variable_timestep(NUM_NODE)
@@ -105,7 +104,7 @@ function [life_counter] = simulate_variable_timestep(NUM_NODE)
             lifeB(idxB) = +inf;
         end
 
-        Gsys = estimate_system_state(NUM_NODE, gN);
+        Gsys = estimate_system_state(gN);
 
         if Gsys == 2 || Gsys == 3
             life_counter = min_life;
@@ -230,7 +229,7 @@ function [gN] = estimate_node_performance_state(gA, gB, gN, lifeA, lifeB, switch
 
 end
 
-function [Gsys] = estimate_system_state(NUM_NODE, gN)
+function [Gsys] = estimate_system_state(gN)
     QPF = sum(gN(:) == 0);
     QSO = sum(gN(:) == 1);
     QDM = sum(gN(:) == 2);
