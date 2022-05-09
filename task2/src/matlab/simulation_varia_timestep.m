@@ -74,6 +74,11 @@ function [lifeCounter] = simulateVariableTimestep(C)
     gA = zeros(C.NUM_NODE, 1);
     gB = zeros(C.NUM_NODE, 1);
     gN = zeros(C.NUM_NODE, 1);
+    gR = zeros(C.NUM_NODE, 1);
+
+    iMasterNode = 1;
+    gR(iMasterNode) = 1;
+
     lifeCounter = 0;
     [gA, gB, lifeA, lifeB] = computeSwitchState(C, gA, gB);
 
@@ -89,7 +94,7 @@ function [lifeCounter] = simulateVariableTimestep(C)
             break;
         end
 
-        switchTag = true;
+        % switchTag = true;
 
         if minLife == minA
             switchTag = true;
@@ -107,7 +112,9 @@ function [lifeCounter] = simulateVariableTimestep(C)
             lifeB(idxB) = +inf;
         end
 
-        Gsys = computeSystemState(C, gN);
+        gR = computeNodeRoleState(C, gN, gR, iMasterNode);
+
+        Gsys = computeSystemState(C, gN, iMasterNode);
 
         if Gsys == 2 || Gsys == 3
             lifeCounter = minLife;
@@ -216,12 +223,72 @@ function [gN] = computeNodePerformanceState(gA, gB, gN, lifeA, lifeB, switchTag,
 
 end
 
-function [Gsys] = computeSystemState(C, gN)
+function [isOk] = isOkForMaster(gNi)
+
+    switch gNi
+        case 0
+            isOk = true;
+        case 1
+            isOk = false;
+        case 2
+            isOk = true;
+        case 3
+            isOk = true; % MO
+        case 4
+            isOk = false;
+        case 5
+            isOk = false;
+    end
+
+end
+
+function [gR, iMasterNode] = computeNodeRoleState(C, gN, gR, iMasterNode)
+
+    if ~isOkForMaster(gN(iMasterNode))
+        % if master node corrupts
+        alertMinTime = 1.0; % rand range (0, 1)
+        minTimeIndex = 0;   % invalid index by default
+        alertCounter = rand(C.NUM_NODE, 1);
+
+        for i = 1:C.NUM_NODE
+
+            if isOkForMaster(gN(i))
+                tmp = alertCounter(i);
+
+                if min(alertMinTime, tmp) == tmp
+                    alertMinTime = tmp;
+                    minTimeIndex = i;
+                end
+
+            end
+
+        end
+
+        if minTimeIndex == 0
+            return
+        end
+
+        iMasterNode = minTimeIndex;
+
+    end
+
+    % now, master node is available
+    idxFirst = find(gN, 3, "first");
+    idxLast = find(gN, 3, "last");
+
+    if idxFirst == idxLast
+        iMasterNode = idxFirst;
+    end
+    % The other cases will corrupt the system later
+    % So there is no need to handle those cases here
+end
+
+function [Gsys] = computeSystemState(C, gN, iMasterNode)
     QPF = sum(gN(:) == 0);
     QSO = sum(gN(:) == 1);
     QDM = sum(gN(:) == 2);
     QMO = sum(gN(:) == 3);
-    QDN = sum(gN(:) == 4);
+    QDN = sum(gN(:) == 4); % not used
     QFB = sum(gN(:) == 5);
 
     C1 = (QFB >= 1);
@@ -239,11 +306,11 @@ function [Gsys] = computeSystemState(C, gN)
     elseif C5 && (C6 || C7)
         Gsys = 2;
     elseif C8 && C9
-        cond = QDM / (QDM + QPF);
-
-        if rand < cond
+        % cond = QDM / (QDM + QPF);
+        % if rand < cond
+        if gN(iMasterNode) == 2
             Gsys = 3;
-        else
+        else % if gN(isOkForMaster) == 0  % Todo: bug here
             Gsys = 4;
         end
 
