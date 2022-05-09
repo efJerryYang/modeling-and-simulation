@@ -1,117 +1,118 @@
 main();
 
 function main()
-    global NUM_SYSTEM TIME_STEP LIFE_LIMIT STATE_NUM_NODE k w
-    global lambda_A PA0 PEA1 PEA2 PEA3
-    global lambda_B PB0 PEB1 PEB2
-
-    NUM_SYSTEM = 100000;
-    TIME_STEP = 1;
-    LIFE_LIMIT = 200000;
-    STATE_NUM_NODE = 6;
-    k = 3;
-    w = 30000;
-    lambda_A = 1/5.90e4;
-    PA0 = exp(-lambda_A * TIME_STEP);
-    PEA1 = 0.20 * (1 - PA0);
-    PEA2 = 0.15 * (1 - PA0);
-    PEA3 = 0.65 * (1 - PA0);
-    lambda_B = 1/2.20e5;
-    PB0 = exp(-lambda_B * TIME_STEP);
-    PEB1 = 0.45 * (1 - PB0);
-    PEB2 = 0.55 * (1 - PB0);
-
-    avg_life_max = 0.0;
-    avg_life_idx = 0;
-    reliability_max = 0.0;
-    reliability_idx = 0;
+    C = initializeConstants();
+    result.averageLifeIndex = 0;
+    result.averageLifeMaxVal = 0.0;
+    result.reliabilityIndex = 0;
+    result.reliabilityMaxVal = 0.0;
 
     for i = 3:20
-        [avg_life_max, avg_life_idx, reliability_max, reliability_idx] = julia_main_varia(i, avg_life_max, avg_life_idx, reliability_max, reliability_idx);
+        C.NUM_NODE = i;
+        [result] = simulate(C, result);
     end
 
-    fprintf("MTTF: %3d%16.4f\n", avg_life_idx, avg_life_max);
-    fprintf("R(w): %3d%15.2f%%\n", reliability_idx, reliability_max * 100);
+    fprintf("MTTF: %3d%16.4f\n", result.averageLifeIndex, result.averageLifeMaxVal);
+    fprintf("R(w): %3d%15.2f%%\n", result.reliabilityIndex, result.reliabilityMaxVal * 100);
 end
 
-function [avg_life_max, avg_life_idx, reliability_max, reliability_idx] = julia_main_varia(NUM_NODE, avg_life_max, avg_life_idx, reliability_max, reliability_idx)
-    NUM_SYSTEM=100000;
-    w = 30000;
-    system_life = zeros(NUM_SYSTEM, 1);
-    % lifeA = zeros(NUM_NODE);
-    % lifeB = zeros(NUM_NODE);
-    reliability_counter = 0;
+function [C] = initializeConstants()
+    C.NUM_SYSTEM = 100000;
+    C.TIME_STEP = 1;
+    C.LIFE_LIMIT = 200000;
+    C.STATE_NUM_NODE = 6;
+    C.k = 3;
+    C.w = 30000;
+    C.Lambda_A = 1/5.90e4;
+    C.PA0 = exp(-C.Lambda_A * C.TIME_STEP);
+    C.PEA1 = 0.20 * (1 - C.PA0);
+    C.PEA2 = 0.15 * (1 - C.PA0);
+    C.PEA3 = 0.65 * (1 - C.PA0);
+    C.Lambda_B = 1/2.20e5;
+    C.PB0 = exp(-C.Lambda_B * C.TIME_STEP);
+    C.PEB1 = 0.45 * (1 - C.PB0);
+    C.PEB2 = 0.55 * (1 - C.PB0);
+    C.NUM_NODE = 10;
+end
 
-    for i = 1:NUM_SYSTEM
-        system_life(i) = simulate_variable_timestep(NUM_NODE);
+function [result] = simulate(C, result)
+    systemLife = zeros(C.NUM_SYSTEM, 1);
+    reliabilityCounter = 0;
 
-        if system_life(i) >= w
-            reliability_counter = reliability_counter + 1;
+    for i = 1:C.NUM_SYSTEM
+        systemLife(i) = simulateVariableTimestep(C);
+
+        if systemLife(i) >= C.w
+            reliabilityCounter = reliabilityCounter + 1;
         end
 
     end
 
-    avg_life = mean(system_life);
-    reliability = reliability_counter / NUM_SYSTEM;
-    fprintf("NUM_NODE:%3d\tMTTF: %12.6f\tReliability: %7.3f%%\n", NUM_NODE, avg_life, reliability * 100)
-    avg_life_max = max(avg_life_max, avg_life);
+    averageLife = mean(systemLife);
+    reliability = reliabilityCounter / C.NUM_SYSTEM;
+    fprintf("NUM_NODE:%3d\tMTTF: %12.6f\tReliability: %7.3f%%\n", C.NUM_NODE, averageLife, reliability * 100)
 
-    if avg_life_max == avg_life
-        avg_life_idx = NUM_NODE;
-    end
-    
-    reliability_max = max(reliability_max, reliability);
-
-    if reliability_max == reliability
-        reliability_idx = NUM_NODE;
-    end
+    % update return result
+    result = updateResult(C, result, averageLife, reliability);
 end
 
-function [life_counter] = simulate_variable_timestep(NUM_NODE)
-    % [gA, gB, gN] = initialize(gA, gB, gN);
-    gA = zeros(NUM_NODE, 1);
-    gB = zeros(NUM_NODE, 1);
-    gN = zeros(NUM_NODE, 1);
-    life_counter = 0;
-    LIFE_LIMIT = 200000;
-    [gA, gB, lifeA, lifeB] = estimate_switch_state(NUM_NODE, gA, gB);
+function [result] = updateResult(C, result, averageLife, reliability)
 
-    for i = 1:2 * NUM_NODE
+    if max(result.averageLifeMaxVal, averageLife) == averageLife
+        result.averageLifeMaxVal = averageLife;
+        result.averageLifeIndex = C.NUM_NODE;
+    end
+
+    if max(result.reliabilityMaxVal, reliability) == reliability
+        result.reliabilityMaxVal = reliability;
+        result.reliabilityIndex = C.NUM_NODE;
+    end
+
+end
+
+function [lifeCounter] = simulateVariableTimestep(C)
+    gA = zeros(C.NUM_NODE, 1);
+    gB = zeros(C.NUM_NODE, 1);
+    gN = zeros(C.NUM_NODE, 1);
+    lifeCounter = 0;
+    [gA, gB, lifeA, lifeB] = computeSwitchState(C, gA, gB);
+
+    for i = 1:2 * C.NUM_NODE
         minA = min(lifeA);
         idxA = find(lifeA == minA);
         minB = min(lifeB);
         idxB = find(lifeB == minB);
-        min_life = min(minA, minB);
+        minLife = min(minA, minB);
 
-        if min_life > LIFE_LIMIT
-            life_counter = LIFE_LIMIT;
+        if minLife > C.LIFE_LIMIT
+            lifeCounter = C.LIFE_LIMIT;
             break;
         end
 
-        switch_tag = true;
+        switchTag = true;
 
-        if min_life == minA
-            switch_tag = true;
+        if minLife == minA
+            switchTag = true;
             idx = idxA;
         else
-            switch_tag = false;
+            switchTag = false;
             idx = idxB;
         end
 
-        gN = estimate_node_performance_state(gA, gB, gN, lifeA, lifeB, switch_tag, idx);
+        gN = computeNodePerformanceState(gA, gB, gN, lifeA, lifeB, switchTag, idx);
 
-        if switch_tag
+        if switchTag
             lifeA(idxA) = +inf;
         else
             lifeB(idxB) = +inf;
         end
 
-        Gsys = estimate_system_state(gN);
+        Gsys = computeSystemState(C, gN);
 
         if Gsys == 2 || Gsys == 3
-            life_counter = min_life;
+            lifeCounter = minLife;
         else
-            life_counter = min_life;
+            lifeCounter = minLife;
             break;
         end
 
@@ -119,41 +120,25 @@ function [life_counter] = simulate_variable_timestep(NUM_NODE)
 
 end
 
-function [gA, gB, gN] = initialize(gA, gB, gN)
-    gA = gA * 0;
-    gB = gB * 0;
-    gN = gN * 0;
-end
+function [gA, gB, lifeA, lifeB] = computeSwitchState(C, gA, gB)
 
-function [gA, gB, lifeA, lifeB] = estimate_switch_state(NUM_NODE, gA, gB)
-    lambda_A = 1/5.90e4;
-    TIME_STEP = 1;
-    PA0 = exp(-lambda_A * TIME_STEP);
-    PEA1 = 0.20 * (1 - PA0);
-    PEA2 = 0.15 * (1 - PA0);
-    PEA3 = 0.65 * (1 - PA0);
-    lambda_B = 1/2.20e5;
-    PB0 = exp(-lambda_B * TIME_STEP);
-    PEB1 = 0.45 * (1 - PB0);
-    PEB2 = 0.55 * (1 - PB0);
+    lifeA = exprnd(1 / C.Lambda_A, C.NUM_NODE, 1);
+    lifeB = exprnd(1 / C.Lambda_B, C.NUM_NODE, 1);
 
-    lifeA = exprnd(1 / lambda_A, NUM_NODE, 1);
-    lifeB = exprnd(1 / lambda_B, NUM_NODE, 1);
+    for i = 1:C.NUM_NODE
+        tolA = rand * (1 - C.PA0);
 
-    for i = 1:NUM_NODE
-        tolA = rand * (1 - PA0);
-
-        if tolA < PEA1
+        if tolA < C.PEA1
             gA(i) = 1;
-        elseif tolA < PEA1 + PEA2
+        elseif tolA < C.PEA1 + C.PEA2
             gA(i) = 2;
         else
             gA(i) = 3;
         end
 
-        tolB = rand * (1 - PB0);
+        tolB = rand * (1 - C.PB0);
 
-        if tolB < PEB1
+        if tolB < C.PEB1
             gB(i) = 1;
         else
             gB(i) = 2;
@@ -163,9 +148,9 @@ function [gA, gB, lifeA, lifeB] = estimate_switch_state(NUM_NODE, gA, gB)
 
 end
 
-function [gN] = estimate_node_performance_state(gA, gB, gN, lifeA, lifeB, switch_tag, idx)
+function [gN] = computeNodePerformanceState(gA, gB, gN, lifeA, lifeB, switchTag, idx)
 
-    if switch_tag
+    if switchTag
 
         if gA(idx) == 1
 
@@ -231,23 +216,23 @@ function [gN] = estimate_node_performance_state(gA, gB, gN, lifeA, lifeB, switch
 
 end
 
-function [Gsys] = estimate_system_state(gN)
+function [Gsys] = computeSystemState(C, gN)
     QPF = sum(gN(:) == 0);
     QSO = sum(gN(:) == 1);
     QDM = sum(gN(:) == 2);
     QMO = sum(gN(:) == 3);
     QDN = sum(gN(:) == 4);
     QFB = sum(gN(:) == 5);
-    k = 3;
+
     C1 = (QFB >= 1);
     C2 = (QMO >= 2);
     C3 = (QPF + QMO + QDM == 0);
-    C4 = ((QPF + QSO + ((QMO + QDM) > 0)) < k);
+    C4 = ((QPF + QSO + ((QMO + QDM) > 0)) < C.k);
     C5 = (QFB == 0);
-    C6 = (QMO == 1 && QPF + QSO >= k - 1);
-    C7 = ((QMO == 0 && QPF >= 1 && QPF + QSO >= k) || (QMO == 0 && QPF == 0 && QDM >= 1 && QSO >= k - 1));
+    C6 = (QMO == 1 && QPF + QSO >= C.k - 1);
+    C7 = ((QMO == 0 && QPF >= 1 && QPF + QSO >= C.k) || (QMO == 0 && QPF == 0 && QDM >= 1 && QSO >= C.k - 1));
     C8 = (QFB + QMO == 0);
-    C9 = (QPF >= 1 && (QPF + QSO == k - 1) && QDM >= 1);
+    C9 = (QPF >= 1 && (QPF + QSO == C.k - 1) && QDM >= 1);
 
     if C1 || C2 || C3 || C4
         Gsys = 1;
