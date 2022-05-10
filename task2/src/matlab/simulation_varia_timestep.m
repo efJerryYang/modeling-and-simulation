@@ -17,7 +17,7 @@ function main()
 end
 
 function [C] = initializeConstants()
-    C.NUM_SYSTEM = 100000;
+    C.NUM_SYSTEM = 500000;
     C.TIME_STEP = 1;
     C.LIFE_LIMIT = 200000;
     C.STATE_NUM_NODE = 6;
@@ -84,9 +84,9 @@ function [lifeCounter] = simulateVariableTimestep(C)
 
     for i = 1:2 * C.NUM_NODE
         minA = min(lifeA);
-        idxA = find(lifeA == minA);
+        idxA = find(lifeA(:) == minA);
         minB = min(lifeB);
-        idxB = find(lifeB == minB);
+        idxB = find(lifeB(:) == minB);
         minLife = min(minA, minB);
 
         if minLife > C.LIFE_LIMIT
@@ -112,7 +112,7 @@ function [lifeCounter] = simulateVariableTimestep(C)
             lifeB(idxB) = +inf;
         end
 
-        gR = computeNodeRoleState(C, gN, gR, iMasterNode);
+        [gR, iMasterNode] = computeNodeRoleState(C, gN, gR, iMasterNode);
 
         Gsys = computeSystemState(C, gN, iMasterNode);
 
@@ -225,29 +225,28 @@ end
 
 function [isOk] = isOkForMaster(gNi)
 
-    switch gNi
-        case 0
-            isOk = true;
-        case 1
-            isOk = false;
-        case 2
-            isOk = true;
-        case 3
-            isOk = true; % MO
-        case 4
-            isOk = false;
-        case 5
-            isOk = false;
+    if gNi == 0
+        isOk = true; % PF
+    elseif gNi == 1
+        isOk = false; % SO
+    elseif gNi == 2
+        isOk = true; % DM
+    elseif gNi == 3
+        isOk = true; % MO
+    elseif gNi == 4
+        isOk = false; % DN
+    elseif gNi == 5
+        isOk = false; % FB
     end
 
 end
 
 function [gR, iMasterNode] = computeNodeRoleState(C, gN, gR, iMasterNode)
-
+    % if previous master node corrupts
     if ~isOkForMaster(gN(iMasterNode))
-        % if master node corrupts
+
         alertMinTime = 1.0; % rand range (0, 1)
-        minTimeIndex = 0;   % invalid index by default
+        minTimeIndex = 0; % assign invalid index by default
         alertCounter = rand(C.NUM_NODE, 1);
 
         for i = 1:C.NUM_NODE
@@ -273,14 +272,14 @@ function [gR, iMasterNode] = computeNodeRoleState(C, gN, gR, iMasterNode)
     end
 
     % now, master node is available
-    idxFirst = find(gN, 3, "first");
-    idxLast = find(gN, 3, "last");
-
-    if idxFirst == idxLast
-        iMasterNode = idxFirst;
+    if sum(gN(:) == 3) == 1
+        iMasterNode = find(gN==3);
+        return
     end
+
     % The other cases will corrupt the system later
-    % So there is no need to handle those cases here
+    % when computing system state, so we only need to
+    % handle the only case above.
 end
 
 function [Gsys] = computeSystemState(C, gN, iMasterNode)
@@ -310,7 +309,7 @@ function [Gsys] = computeSystemState(C, gN, iMasterNode)
         % if rand < cond
         if gN(iMasterNode) == 2
             Gsys = 3;
-        else % if gN(isOkForMaster) == 0  % Todo: bug here
+        elseif gN(iMasterNode) == 0 % Todo: bug here
             Gsys = 4;
         end
 
