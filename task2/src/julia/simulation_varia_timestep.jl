@@ -13,6 +13,7 @@ end
 
 begin
     # constant parameters
+    Random.seed!(10)
     ## system 
     const NUM_SYSTEM = 10_0000
     # const NUM_SYSTEM = 10_0000
@@ -95,9 +96,6 @@ function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
         minA, idxA = findmin(lifeA)
         minB, idxB = findmin(lifeB)
         min_life = min(minA, minB)
-
-        min_life > LIFE_LIMIT && (life_counter = LIFE_LIMIT; return life_counter)
-
         switch_tag, idx = (min_life == minA) ? (true, idxA) : (false, idxB)
 
         compute_node_perfstate!(NUM_NODE, gA, gB, gN, lifeA, lifeB, switch_tag, idx)
@@ -112,10 +110,15 @@ function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
             life_counter = min_life
         else
             life_counter = min_life
-            return life_counter
+            break
+        end
+
+        if life_counter >= LIFE_LIMIT
+            life_counter = LIFE_LIMIT
+            break
         end
     end
-    return life_counter
+    life_counter = min(life_counter, LIFE_LIMIT)
 end
 
 function initialize!(NUM_NODE, gA, gB, gN, gR)
@@ -186,7 +189,7 @@ function compute_node_rolestate!(NUM_NODE, gN, gR, master_node)
     # role vector: gR
     # node (performance) vector: gN
     if !ok_for_master(gN[master_node])
-        
+
         alert_mintime = 1.0 # rand() [0.0, 1.0)
         mintime_index = 0
         alert_counter = rand(NUM_NODE)
@@ -222,7 +225,7 @@ end
 
 function compute_systemstate!(NUM_NODE, gN, master_node)
     QPF::Int8 = QSO::Int8 = QDM::Int8 = QMO::Int8 = QDN::Int8 = QFB::Int8 = 0
-    Gsys::Int8 = 2
+    # Gsys::Int8 = 2
     @inbounds for elem in gN
         elem == 0 && (QPF += 1; continue)
         elem == 1 && (QSO += 1; continue)
