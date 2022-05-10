@@ -1,21 +1,5 @@
 main();
 
-function main()
-    C = initializeConstants();
-    result.averageLifeIndex = 0;
-    result.averageLifeMaxVal = 0.0;
-    result.reliabilityIndex = 0;
-    result.reliabilityMaxVal = 0.0;
-
-    for i = 3:20
-        C.NUM_NODE = i;
-        [result] = simulate(C, result);
-    end
-
-    fprintf("MTTF: %3d%16.4f\n", result.averageLifeIndex, result.averageLifeMaxVal);
-    fprintf("R(w): %3d%15.2f%%\n", result.reliabilityIndex, result.reliabilityMaxVal * 100);
-end
-
 function [C] = initializeConstants()
     C.NUM_SYSTEM = 500000;
     C.TIME_STEP = 1;
@@ -33,6 +17,22 @@ function [C] = initializeConstants()
     C.PEB1 = 0.45 * (1 - C.PB0);
     C.PEB2 = 0.55 * (1 - C.PB0);
     C.NUM_NODE = 10;
+end
+
+function main()
+    C = initializeConstants();
+    result.averageLifeIndex = 0;
+    result.averageLifeMaxVal = 0.0;
+    result.reliabilityIndex = 0;
+    result.reliabilityMaxVal = 0.0;
+
+    for i = 3:20
+        C.NUM_NODE = i;
+        [result] = simulate(C, result);
+    end
+
+    fprintf("MTTF: %3d%16.4f\n", result.averageLifeIndex, result.averageLifeMaxVal);
+    fprintf("R(w): %3d%15.2f%%\n", result.reliabilityIndex, result.reliabilityMaxVal * 100);
 end
 
 function [result] = simulate(C, result)
@@ -74,7 +74,7 @@ function [lifeCounter] = simulateVariableTimestep(C)
     gA = zeros(C.NUM_NODE, 1);
     gB = zeros(C.NUM_NODE, 1);
     gN = zeros(C.NUM_NODE, 1);
-    gR = zeros(C.NUM_NODE, 1);
+    gR = zeros(C.NUM_NODE, 1); % not used currently
 
     iMasterNode = 1;
     gR(iMasterNode) = 1;
@@ -273,7 +273,7 @@ function [gR, iMasterNode] = computeNodeRoleState(C, gN, gR, iMasterNode)
 
     % now, master node is available
     if sum(gN(:) == 3) == 1
-        iMasterNode = find(gN==3);
+        iMasterNode = find(gN == 3);
         return
     end
 
@@ -309,7 +309,7 @@ function [Gsys] = computeSystemState(C, gN, iMasterNode)
         % if rand < cond
         if gN(iMasterNode) == 2
             Gsys = 3;
-        elseif gN(iMasterNode) == 0 % Todo: bug here
+        elseif gN(iMasterNode) == 0
             Gsys = 4;
         end
 

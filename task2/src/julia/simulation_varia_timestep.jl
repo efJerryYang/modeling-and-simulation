@@ -1,5 +1,3 @@
-using Markdown
-using InteractiveUtils
 
 begin
     using Statistics        # to use mean()
@@ -37,13 +35,15 @@ begin
     const PEB2 = 0.55 * (1 - PB0)
     nothing
 end
+
 mutable struct Result
     averagelife_max::Float64
     averagelife_idx::Int8
     reliability_max::Float64
     reliability_idx::Int8
 end
-function real_main()
+
+function julia_main()
     result = Result(0, 0, 0, 0)
     @time for i::Int8 = 3:20
         result = simulate(i, result)
@@ -57,28 +57,33 @@ function simulate(NUM_NODE::Int8, result::Result)
     gA = zeros(Int8, NUM_NODE)
     gB = zeros(Int8, NUM_NODE)
     gN = zeros(Int8, NUM_NODE)
-    gR = zeros(Int8, NUM_NODE)
-    system_life = zeros(Float64, NUM_SYSTEM)
+    gR = zeros(Int8, NUM_NODE)  # not used currently
     lifeA = zeros(NUM_NODE)
     lifeB = zeros(NUM_NODE)
+
+    system_life = zeros(Float64, NUM_SYSTEM)
     reliability_counter = 0
 
     @inbounds for i = 1:NUM_SYSTEM
         system_life[i] = simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
-        system_life[i] > w && (reliability_counter += 1)
+        system_life[i] >= w && (reliability_counter += 1)
     end
 
     averagelife = mean(system_life)
     reliability = reliability_counter / NUM_SYSTEM
     @printf("NUM_NODE:%3d\tMTTF: %12.6f\t\tReliability: %7.3f%%\n", NUM_NODE, averagelife, reliability * 100)
+
+    # update return result
     return update_result(NUM_NODE, result, averagelife, reliability)
 end
 
 function update_result(NUM_NODE, result, averagelife, reliability)
+
     if max(result.averagelife_max, averagelife) == averagelife
         result.averagelife_max = averagelife
         result.averagelife_idx = NUM_NODE
     end
+
     if max(result.reliability_max, reliability) == reliability
         result.reliability_max = reliability
         result.reliability_idx = NUM_NODE
@@ -96,14 +101,21 @@ function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
         minA, idxA = findmin(lifeA)
         minB, idxB = findmin(lifeB)
         min_life = min(minA, minB)
-        switch_tag, idx = (min_life == minA) ? (true, idxA) : (false, idxB)
 
+        if min_life >= LIFE_LIMIT
+            life_counter = LIFE_LIMIT
+            break
+        end
+
+        switch_tag, idx = (min_life == minA) ? (true, idxA) : (false, idxB)
         compute_node_perfstate!(NUM_NODE, gA, gB, gN, lifeA, lifeB, switch_tag, idx)
         if switch_tag
             lifeA[idxA] = +Inf
         else
             lifeB[idxB] = +Inf
         end
+
+        master_node = compute_node_rolestate!(NUM_NODE, gN, gR, master_node)
 
         Gsys::Int8 = compute_systemstate!(NUM_NODE, gN, master_node)
         if Gsys == 2 || Gsys == 3
@@ -113,10 +125,6 @@ function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
             break
         end
 
-        if life_counter >= LIFE_LIMIT
-            life_counter = LIFE_LIMIT
-            break
-        end
     end
     life_counter = min(life_counter, LIFE_LIMIT)
 end
@@ -184,6 +192,7 @@ function ok_for_master(gNi)
     gNi == 4 && return false
     gNi == 5 && return false
 end
+
 function compute_node_rolestate!(NUM_NODE, gN, gR, master_node)
     # role state transition process is based on the formula given above
     # role vector: gR
@@ -196,9 +205,10 @@ function compute_node_rolestate!(NUM_NODE, gN, gR, master_node)
 
         @inbounds for i = 1:NUM_NODE
             if ok_for_master(gN[i])
-                tmp = alert_mintime
-                alert_mintime = min(alert_mintime, alert_counter[i])
-                mintime_index = tmp != alert_mintime ? i : mintime_index
+                tmp = alert_counter[i]
+
+                alert_mintime = min(alert_mintime, tmp)
+                mintime_index = tmp == alert_mintime ? i : mintime_index
             end
         end
         mintime_index == 0 && return master_node
@@ -226,6 +236,7 @@ end
 function compute_systemstate!(NUM_NODE, gN, master_node)
     QPF::Int8 = QSO::Int8 = QDM::Int8 = QMO::Int8 = QDN::Int8 = QFB::Int8 = 0
     # Gsys::Int8 = 2
+    
     @inbounds for elem in gN
         elem == 0 && (QPF += 1; continue)
         elem == 1 && (QSO += 1; continue)
@@ -234,6 +245,7 @@ function compute_systemstate!(NUM_NODE, gN, master_node)
         elem == 4 && (QDN += 1; continue)
         elem == 5 && (QFB += 1; continue)
     end
+
     C1::Bool = (QFB >= 1)
     C2::Bool = (QMO >= 2)
     C3::Bool = (QPF + QMO + QDM == 0)
@@ -243,19 +255,21 @@ function compute_systemstate!(NUM_NODE, gN, master_node)
     C7::Bool = ((QMO == 0 && QPF >= 1 && QPF + QSO >= k) || (QMO == 0 && QPF == 0 && QDM >= 1 && QSO >= k - 1))
     C8::Bool = (QFB + QMO == 0)
     C9::Bool = (QPF >= 1 && (QPF + QSO == k - 1) && QDM >= 1)
+
     if C1 || C2 || C3 || C4
         Gsys = 1
     elseif C5 && (C6 || C7)
         Gsys = 2
     elseif C8 && C9
-        cond = QDM / (QDM + QPF)
-        if rand() < cond
+        # cond = QDM / (QDM + QPF)
+        # if rand() < cond
+        if gN[master_node] == 2
             Gsys = 3
-        else
+        else#if gN[master_node] == 0
             Gsys = 4
         end
     end
     return Gsys
 end
 
-real_main()
+julia_main()
