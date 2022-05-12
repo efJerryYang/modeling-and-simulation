@@ -1,10 +1,10 @@
 begin
-    using Statistics  # to use mean()
-    using Printf  # to use @printf()
-    using Plots  # to use histogram() and histogram!()
-    using DelimitedFiles  # to use writedlm() (and readdlm())
-    using Distributions  # to use Exponential() distribution for sampling
-    using Random            # to use rand!() inplace operation and seed!()
+    using Statistics          # to use mean()
+    using Printf              # to use @printf()
+    using Plots               # to use histogram() and histogram!()
+    using DelimitedFiles      # to use writedlm() (and readdlm())
+    using Distributions       # to use Exponential() distribution for sampling
+    using Random              # to use rand!() inplace operation and seed!()
 end
 
 begin
@@ -15,11 +15,11 @@ begin
     const iend = 20
 
     ## system 
-    const NUM_SYSTEM = 10_0000
+    const NUM_SYSTEM = 1000
     # const NUM_SYSTEM = 2000
-    # NUM_NODE = 10               # this should also be optimized later
+    # NUM_NODE = 10                   # this should also be optimized later
     const TIME_STEP = 1               # 1 hour
-    # const LIFE_LIMIT = 60_0000        # suitable life limit (roughly 5% of bug value)
+    # const LIFE_LIMIT = 60_0000      # suitable life limit (roughly 5% of bug value)
     const LIFE_LIMIT = 20_0000
     const STATE_NUM_NODE = 6
     const k = 3
@@ -84,21 +84,22 @@ function simulate(NUM_NODE, result)
     averagelife = mean(system_life)
     reliability = reliability_counter / NUM_SYSTEM
     @printf("NUM_NODE:%3d\tMTTF: %12.6f\t\tReliability: %7.3f%%\n", NUM_NODE, averagelife, reliability * 100)
+
+    # update return result
     return update_result(NUM_NODE, result, averagelife, reliability)
 end
 
 function simulate_fixed_timestep!(NUM_NODE, gA, gB, gN)
     master_node::Int8 = initialize!(NUM_NODE, gA, gB, gN)
-    # Gsys::Int8 = 0  # 初始化后的系统可以正常工作
+
     state_system = false
     life_counter::Int32 = 0
-    QPF::Int8 = QSO::Int8 = QDM::Int8 = QMO::Int8 = QDN::Int8 = QFB::Int8 = 0
     while !state_system && life_counter < LIFE_LIMIT
         compute_switchstate!(NUM_NODE, gA, gB)
         compute_nodestate!(NUM_NODE, gA, gB, gN)
         master_node = reselect_master!(NUM_NODE, gN, master_node)
-        
-        Gsys::Int8 = compute_systemstate!(NUM_NODE,gN,master_node)
+
+        Gsys::Int8 = compute_systemstate!(NUM_NODE, gN, master_node)
         if Gsys == 2 || Gsys == 3
             life_counter += 1
         else

@@ -11,11 +11,11 @@ end
 
 begin
     # constant parameters
-    # Random.seed!(10)
     ## simulation
+    # Random.seed!(10)
     const ibegin = 3
     const iend = 20
-    ## system 
+    ## system
     const NUM_SYSTEM = 10_0000
     # const NUM_SYSTEM = 10_0000
     # const NUM_NODE = 10
@@ -65,7 +65,6 @@ function julia_main()
     @time for i::Int8 = ibegin:iend
         result = simulate(i, result)
     end
-
     @printf("MTTF: %3d%16.4f\n", result.averagelife_idx, result.averagelife_max)
     @printf("R(w): %3d%15.2f%%\n", result.reliability_idx, result.reliability_max * 100)
 end
@@ -80,7 +79,6 @@ function simulate(NUM_NODE::Int8, result::Result)
 
     system_life = zeros(Float64, NUM_SYSTEM)
     reliability_counter = 0
-
     @inbounds for i = 1:NUM_SYSTEM
         system_life[i] = simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
         system_life[i] >= w && (reliability_counter += 1)
@@ -92,20 +90,6 @@ function simulate(NUM_NODE::Int8, result::Result)
 
     # update return result
     return update_result(NUM_NODE, result, averagelife, reliability)
-end
-
-function update_result(NUM_NODE, result, averagelife, reliability)
-
-    if max(result.averagelife_max, averagelife) == averagelife
-        result.averagelife_max = averagelife
-        result.averagelife_idx = NUM_NODE
-    end
-
-    if max(result.reliability_max, reliability) == reliability
-        result.reliability_max = reliability
-        result.reliability_idx = NUM_NODE
-    end
-    return result
 end
 
 function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
@@ -172,32 +156,32 @@ end
 
 function compute_node_perfstate!(NUM_NODE, gA, gB, gN, lifeA, lifeB, switch_tag, idx)
     if switch_tag
-        if gA[idx] == 1
-            lifeB[idx] != +Inf && (gN[idx] = 1; return nothing)
-            gB[idx] == 1 && (gN[idx] = 5; return nothing)
-            gB[idx] == 2 && (gN[idx] = 1; return nothing)
-        elseif gA[idx] == 2
-            lifeB[idx] != +Inf && (gN[idx] = 2; return nothing)
-            gB[idx] == 1 && (gN[idx] = 3; return nothing)
-            gB[idx] == 2 && (gN[idx] = 4; return nothing)
-        elseif gA[idx] == 3
-            lifeB[idx] != +Inf && (gN[idx] = 4; return nothing)
-            gB[idx] == 1 && (gN[idx] = 4; return nothing)
-            gB[idx] == 2 && (gN[idx] = 4; return nothing)
+            if gA[idx] == 1
+                lifeB[idx] != +Inf && (gN[idx] = 1; return nothing)
+                gB[idx] == 1 && (gN[idx] = 5; return nothing)
+                gB[idx] == 2 && (gN[idx] = 1; return nothing)
+            elseif gA[idx] == 2
+                lifeB[idx] != +Inf && (gN[idx] = 2; return nothing)
+                gB[idx] == 1 && (gN[idx] = 3; return nothing)
+                gB[idx] == 2 && (gN[idx] = 4; return nothing)
+            elseif gA[idx] == 3
+                lifeB[idx] != +Inf && (gN[idx] = 4; return nothing)
+                gB[idx] == 1 && (gN[idx] = 4; return nothing)
+                gB[idx] == 2 && (gN[idx] = 4; return nothing)
+            end
+        else
+            if gB[idx] == 1
+                lifeA[idx] != +Inf && (gN[idx] = 3; return nothing)
+                gA[idx] == 1 && (gN[idx] = 5; return nothing)
+                gA[idx] == 2 && (gN[idx] = 3; return nothing)
+                gA[idx] == 3 && (gN[idx] = 4; return nothing)
+            elseif gB[idx] == 2
+                lifeA[idx] != +Inf && (gN[idx] = 1; return nothing)
+                gA[idx] == 1 && (gN[idx] = 1; return nothing)
+                gA[idx] == 2 && (gN[idx] = 4; return nothing)
+                gA[idx] == 3 && (gN[idx] = 4; return nothing)
+            end
         end
-    else
-        if gB[idx] == 1
-            lifeA[idx] != +Inf && (gN[idx] == 3; return nothing)
-            gA[idx] == 1 && (gN[idx] = 5; return nothing)
-            gA[idx] == 2 && (gN[idx] = 3; return nothing)
-            gA[idx] == 3 && (gN[idx] = 4; return nothing)
-        elseif gB[idx] == 2
-            lifeA[idx] != +Inf && (gN[idx] == 1; return nothing)
-            gA[idx] == 1 && (gN[idx] = 1; return nothing)
-            gA[idx] == 2 && (gN[idx] = 4; return nothing)
-            gA[idx] == 3 && (gN[idx] = 4; return nothing)
-        end
-    end
     nothing
 end
 
@@ -252,7 +236,6 @@ end
 
 function compute_systemstate!(NUM_NODE, gN, master_node)
     QPF::Int8 = QSO::Int8 = QDM::Int8 = QMO::Int8 = QDN::Int8 = QFB::Int8 = 0
-    # Gsys::Int8 = 2
 
     @inbounds for elem in gN
         elem == 0 && (QPF += 1; continue)
