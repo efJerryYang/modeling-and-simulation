@@ -1,7 +1,7 @@
 main();
 
 function [C] = initializeConstants()
-    C.NUM_SYSTEM = 500000;
+    C.NUM_SYSTEM = 4000000;
     C.TIME_STEP = 1;
     C.LIFE_LIMIT = 200000;
     C.STATE_NUM_NODE = 6;

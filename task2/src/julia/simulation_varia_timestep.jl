@@ -6,12 +6,12 @@ begin
     using DelimitedFiles    # to use writedlm() (and readdlm())
     using Distributions     # to use Exponential() distribution for sampling
     using PlutoUI           # to use @with_terminal
-    using Random            # to use rand!() inplace operation
+    using Random            # to use rand!() inplace operation and seed!()
 end
 
 begin
     # constant parameters
-    Random.seed!(10)
+    # Random.seed!(10)
     ## system 
     const NUM_SYSTEM = 10_0000
     # const NUM_SYSTEM = 10_0000
@@ -41,6 +41,20 @@ mutable struct Result
     averagelife_idx::Int8
     reliability_max::Float64
     reliability_idx::Int8
+end
+
+function update_result(NUM_NODE, result, averagelife, reliability)
+
+    if max(result.averagelife_max, averagelife) == averagelife
+        result.averagelife_max = averagelife
+        result.averagelife_idx = NUM_NODE
+    end
+
+    if max(result.reliability_max, reliability) == reliability
+        result.reliability_max = reliability
+        result.reliability_idx = NUM_NODE
+    end
+    return result
 end
 
 function julia_main()
@@ -236,7 +250,7 @@ end
 function compute_systemstate!(NUM_NODE, gN, master_node)
     QPF::Int8 = QSO::Int8 = QDM::Int8 = QMO::Int8 = QDN::Int8 = QFB::Int8 = 0
     # Gsys::Int8 = 2
-    
+
     @inbounds for elem in gN
         elem == 0 && (QPF += 1; continue)
         elem == 1 && (QSO += 1; continue)
@@ -265,7 +279,7 @@ function compute_systemstate!(NUM_NODE, gN, master_node)
         # if rand() < cond
         if gN[master_node] == 2
             Gsys = 3
-        else#if gN[master_node] == 0
+        elseif gN[master_node] == 0
             Gsys = 4
         end
     end
