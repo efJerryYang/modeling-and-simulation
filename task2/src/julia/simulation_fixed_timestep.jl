@@ -10,7 +10,7 @@ using DelimitedFiles
 # constant parameters
 ## system 
 # NUM_SYSTEM = 10_0000
-const NUM_SYSTEM = 25_0001
+const NUM_SYSTEM = 1000
 const NUM_NODE = 10               # this should also be optimized later
 const TIME_STEP = 1               # 1 hour
 const LIFE_LIMIT = 60_0000
@@ -100,19 +100,6 @@ function update_node_state!(gA, gB, gN, master_flag, master_node) # 2 当准备�
     nothing
 end
 
-#! 这部分应该是整个系统里最麻烦的地方
-# 注意，从描述中可知，如果系统处于正常工作状态，哪怕有异常节点，也不会触发主
-# 节点重选，重选主节点一定发生在系统处于异常时，但问题在于，这个时候不应该认
-# 为系统失效，所以不能完全应用Gsys的状态（否则就要统计两次Gsys的状态）
-# 除此以外，这里的“戒备状态”事实上并不是真的时间，而是随机产生一组随机数，选
-# 择最小数下标的作为重选的主节点很容易实现： 
-# _, new_master_index = findmin(rand(NUM_NODE))
-# 这里再根据具体的要求改改就可以了
-# 问题在于，如何判断总线时钟失效，以及如果当前有多个主节点怎么办？
-# 先停这里，写update_node_state
-# if clock_invalid
-#     master_flag
-# end
 function ok_for_master(gNi)
     gNi == 0 && return true
     gNi == 1 && return false
@@ -121,27 +108,6 @@ function ok_for_master(gNi)
     gNi == 4 && return false
     gNi == 5 && return false
 end
-# 节点重选 
-# 这里节点重选的地方还没能想清楚
-# 从最初始的地方开始，是主节点在 1 号，然后剩余节点都是从节点
-# 
-# 在 update_node_state 之后，由于对于 switch 状态的重新估计，导致了 node 的状态可能发生改变。
-# 
-# 这时候，需要对接下来可能发生变化的系统状态进行讨论，
-# 
-# 我们要进行节点重选，是因为更新节点状态之后可能会导致系统出现异常，那么，这里能不能套用后面计算系统状态的结论？
-# 如果不行的话，这个分析过程将会变得相当复杂，等价于分析后面系统状态变化的工作量。
-# 
-# 重选节点的算法本身很简单，但是如何选择可以用于重选的节点？这个限制条件要怎么加？
-# 
-# 现在我已经有了什么：所有节点的状态，以及一个最初设定的主节点 1
-# 
-# 现在遇到的困难是，如果主节点不是 1 了，我要如何找出所选的主节点，以及当存在了多个主节点的时候，要如何选择去除多余的主节点。
-# 
-# 那么，现在为了简化问题，我先强行要求只能有一个主节点，否则系统异常，查找可以去除的主节点，并完成节点重选
-# 
-# 我认为，主节点可以从 MO 里面添加，但是不能从节点更新就开始就添加会比较好处理
-# 即，在节点更新函数里面，可以使主节点个数减少到 0，但不能主动设置主节点
 
 function reselect_master!(gA, gB, gN, master_flag, master_node)  # 1
     # index = findfirst(master_flag)
@@ -159,7 +125,7 @@ function reselect_master!(gA, gB, gN, master_flag, master_node)  # 1
         end
         if mintime_index == 0
             return
-        end  #! 如果没有找到合适的节点，直接返回，反正后面讨论系统的状态的时候会计算到
+        end  
         master_flag[master_node] = 0
         master_node = mintime_index  #! 对于没有找到合适的节点如何处理，当时没有考虑
         master_flag[master_node] = 1  #! bug: master_flag[1, 1, 0, 0, 0, 0, 1, 0, 0, 1], 没有设置为0，只在设置为1
@@ -235,19 +201,6 @@ function simulate!(gA, gB, gN, master_flag)
             state_system = true
         end
     end
-    @printf("\ngA:")
-    for i = 1:NUM_NODE
-        @printf("%3d", gA[i])
-    end
-    @printf("\ngB:")
-    for i = 1:NUM_NODE
-        @printf("%3d", gB[i])
-    end
-    @printf("\ngN:")
-    for i = 1:NUM_NODE
-        @printf("%3d", gN[i])
-    end
-    @printf("\nGsys:%3d\tQPF%3d\tQSO%3d\tQDM%3d\tQMO%3d\tQDN%3d\tQFB%3d\n", Gsys, QPF, QSO, QDM, QMO, QDN, QFB)
     life_counter
 end
 
