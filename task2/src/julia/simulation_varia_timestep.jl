@@ -12,6 +12,9 @@ end
 begin
     # constant parameters
     # Random.seed!(10)
+    ## simulation
+    const ibegin = 3
+    const iend = 20
     ## system 
     const NUM_SYSTEM = 10_0000
     # const NUM_SYSTEM = 10_0000
@@ -59,7 +62,7 @@ end
 
 function julia_main()
     result = Result(0, 0, 0, 0)
-    @time for i::Int8 = 3:20
+    @time for i::Int8 = ibegin:iend
         result = simulate(i, result)
     end
 
