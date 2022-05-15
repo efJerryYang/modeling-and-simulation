@@ -273,7 +273,7 @@ function [gR, iMasterNode] = computeNodeRoleState(C, gN, gR, iMasterNode)
 
     % now, master node is available
     if sum(gN(:) == 3) == 1
-        iMasterNode = find(gN==3);
+        iMasterNode = find(gN == 3);
         return
     end
 
@@ -309,7 +309,7 @@ function [Gsys] = computeSystemState(C, gN, iMasterNode)
         % if rand < cond
         if gN(iMasterNode) == 2
             Gsys = 3;
-        elseif gN(iMasterNode) == 0 % Todo: bug here
+        elseif gN(iMasterNode) == 0
             Gsys = 4;
         end
 
