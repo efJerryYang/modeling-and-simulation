@@ -16,7 +16,7 @@ begin
     const ibegin = 3
     const iend = 20
     ## system
-    const NUM_SYSTEM = 1000_0000
+    const NUM_SYSTEM = 10_0000
     # const NUM_SYSTEM = 10_0000
     # const NUM_NODE = 10
     const TIME_STEP = 1               # 1 hour

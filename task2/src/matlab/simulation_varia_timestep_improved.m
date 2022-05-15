@@ -73,7 +73,7 @@ end
 
 function [lifeCounter] = simulateVariableTimestep(C)
     gA = zeros(C.NUM_NODE, 1);
-    gB = zeros(C.NUM_NODE, 1);
+    gB = zeros(C.NUM_NODE, 2);
     gN = zeros(C.NUM_NODE, 1);
 
     iMasterNode = 1;
@@ -84,7 +84,7 @@ function [lifeCounter] = simulateVariableTimestep(C)
     for i = 1:2 * C.NUM_NODE
         minA = min(lifeA);
         idxA = find(lifeA(:) == minA);
-        minB = min(lifeB);
+        minB = min(min(lifeB));
         idxB = find(lifeB(:) == minB);
         minLife = min(minA, minB);
 
@@ -101,7 +101,7 @@ function [lifeCounter] = simulateVariableTimestep(C)
             idx = idxB;
         end
 
-        gN = computeNodePerformanceState(gA, gB, gN, lifeA, lifeB, idx);
+        gN = computeNodePerformanceState(C, gA, gB, gN, lifeA, lifeB, idx);
 
         [iMasterNode] = computeNodeRoleState(C, gN, iMasterNode);
 
@@ -121,7 +121,7 @@ end
 function [gA, gB, lifeA, lifeB] = computeSwitchState(C, gA, gB)
 
     lifeA = exprnd(1 / C.Lambda_A, C.NUM_NODE, 1);
-    lifeB = exprnd(1 / C.Lambda_B, C.NUM_NODE, 1);
+    lifeB = exprnd(1 / C.Lambda_B, C.NUM_NODE, 2);
 
     for i = 1:C.NUM_NODE
         tolA = rand * (1 - C.PA0);
@@ -137,53 +137,80 @@ function [gA, gB, lifeA, lifeB] = computeSwitchState(C, gA, gB)
         tolB = rand * (1 - C.PB0);
 
         if tolB < C.PB1
-            gB(i) = 1;
+            gB(i, 1) = 1;
         else
-            gB(i) = 2;
+            gB(i, 1) = 2;
+        end
+        tolB2 = rand * (1 - C.PB0);
+        
+        if tolB2 < C.PB1
+            gB(i, 2) = 1;
+        else
+            gB(i, 2) = 2;
         end
     end
 
 end
 
-function [gN] = computeNodePerformanceState(gA, gB, gN, lifeA, lifeB, idx)
-    if lifeA(idx) ~= +Inf
+function [gN] = computeNodePerformanceState(C, gA, gB, gN, lifeA, lifeB, idx)
+    if idx > C.NUM_NODE
+        i = idx - C.NUM_NODE;
+    else
+        i = idx;
+    end
+    % state of switch B and switch B2
+    %     B 0   1   2 |
+    %  B2 +---+---+---+
+    %   0 | 0 | 0 | 2 |
+    %   1 | 0 | 1 | 2 |
+    %   2 | 2 | 2 | 2 |
+    %  ---+---+---+---+
+    if gB(i, 1) == 1 && lifeB(i, 1) == +Inf && gB(i, 2) == 1 && gB(i, 2) == +Inf
+        gBi = 1;
+    elseif (gB(i, 1) == 2 && lifeB(i, 1) == +Inf) || (gB(i, 2) == 2 && lifeB(i, 2) == +Inf)
+        gBi = 2;
+    else
+        gBi = 0;
+    end
 
-        if lifeB(idx) ~= +Inf
-            gN(idx) = 0;
-        elseif gB(idx) == 1
-            gN(idx) = 3;
-        elseif gB(idx) == 2
-            gN(idx) = 1;
+    if lifeA(i) ~= +Inf
+
+        if gBi == 0
+            gN(i) = 0;
+        elseif gBi == 1
+            gN(i) = 3;
+        elseif gBi == 2
+            gN(i) = 1;
         end
 
-    elseif gA(idx) == 1
+    elseif gA(i) == 1
 
-        if lifeB(idx) ~= +Inf
-            gN(idx) = 1;
-        elseif gB(idx) == 1
-            gN(idx) = 5;
-        elseif gB(idx) == 2
-            gN(idx) = 1;
+        if gBi == 0
+            gN(i) = 1;
+        elseif gBi == 1
+            gN(i) = 5;
+        elseif gBi == 2
+            gN(i) = 1;
         end
 
-    elseif gA(idx) == 2
+    elseif gA(i) == 2
 
-        if lifeB(idx) ~= +Inf
-            gN(idx) = 2;
-        elseif gB(idx) == 1
-            gN(idx) = 3;
-        elseif gB(idx) == 2
-            gN(idx) = 4;
+        if gBi == 0
+            gN(i) = 2;
+        elseif gBi == 1
+            gN(i) = 3;
+        elseif gBi == 2
+            gN(i) = 4;
         end
 
-    elseif gA(idx) == 3
+    elseif gA(i) == 3
 
-        if lifeB(idx) ~= +Inf
-            gN(idx) = 4;
-        elseif gB(idx) == 1
-            gN(idx) = 4;
-        elseif gB(idx) == 2
-            gN(idx) = 4;
+        if gBi == 0
+            gN(i) = 4;
+        elseif gBi == 1
+            gN(i) = 4;
+        elseif gBi == 2
+            gN(i) = 4;
         end
 
     end
