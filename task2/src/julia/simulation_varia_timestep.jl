@@ -28,14 +28,14 @@ begin
     ## switch A
     const λA = 1 / 5.90e4             # hour
     const PA0 = exp(-λA * TIME_STEP)
-    const PEA1 = 0.20 * (1 - PA0)
-    const PEA2 = 0.15 * (1 - PA0)
-    const PEA3 = 0.65 * (1 - PA0)
+    const PA1 = 0.20 * (1 - PA0)
+    const PA2 = 0.15 * (1 - PA0)
+    const PA3 = 0.65 * (1 - PA0)
     ## switch B
     const λB = 1 / 2.20e5             # hour
     const PB0 = exp(-λB * TIME_STEP)
-    const PEB1 = 0.45 * (1 - PB0)
-    const PEB2 = 0.55 * (1 - PB0)
+    const PB1 = 0.45 * (1 - PB0)
+    const PB2 = 0.55 * (1 - PB0)
     nothing
 end
 
@@ -147,9 +147,9 @@ function compute_switchstate!(NUM_NODE, gA, gB, lifeA, lifeB)
     rand!(Exponential(1 / λB), lifeB)
     @inbounds for i = 1:NUM_NODE
         tolA = rand() * (1 - PA0)
-        gA[i] = tolA < PEA1 ? 1 : tolA < PEA1 + PEA2 ? 2 : 3
+        gA[i] = tolA < PA1 ? 1 : tolA < PA1 + PA2 ? 2 : 3
         tolB = rand() * (1 - PB0)
-        gB[i] = tolB < PEB1 ? 1 : 2
+        gB[i] = tolB < PB1 ? 1 : 2
     end
     nothing
 end
