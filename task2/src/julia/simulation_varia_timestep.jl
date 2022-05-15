@@ -108,13 +108,14 @@ function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
             break
         end
 
-        switch_tag, idx = (min_life == minA) ? (true, idxA) : (false, idxB)
-        compute_node_perfstate!(NUM_NODE, gA, gB, gN, lifeA, lifeB, switch_tag, idx)
-        if switch_tag
+        if min_life == minA
+            idx = idxA
             lifeA[idxA] = +Inf
         else
+            idx = idxB
             lifeB[idxB] = +Inf
         end
+        compute_node_perfstate!(NUM_NODE, gA, gB, gN, lifeA, lifeB, idx)
 
         master_node = compute_node_rolestate!(NUM_NODE, gN, gR, master_node)
 
@@ -154,34 +155,24 @@ function compute_switchstate!(NUM_NODE, gA, gB, lifeA, lifeB)
     nothing
 end
 
-function compute_node_perfstate!(NUM_NODE, gA, gB, gN, lifeA, lifeB, switch_tag, idx)
-    if switch_tag
-            if gA[idx] == 1
-                lifeB[idx] != +Inf && (gN[idx] = 1; return nothing)
-                gB[idx] == 1 && (gN[idx] = 5; return nothing)
-                gB[idx] == 2 && (gN[idx] = 1; return nothing)
-            elseif gA[idx] == 2
-                lifeB[idx] != +Inf && (gN[idx] = 2; return nothing)
-                gB[idx] == 1 && (gN[idx] = 3; return nothing)
-                gB[idx] == 2 && (gN[idx] = 4; return nothing)
-            elseif gA[idx] == 3
-                lifeB[idx] != +Inf && (gN[idx] = 4; return nothing)
-                gB[idx] == 1 && (gN[idx] = 4; return nothing)
-                gB[idx] == 2 && (gN[idx] = 4; return nothing)
-            end
-        else
-            if gB[idx] == 1
-                lifeA[idx] != +Inf && (gN[idx] = 3; return nothing)
-                gA[idx] == 1 && (gN[idx] = 5; return nothing)
-                gA[idx] == 2 && (gN[idx] = 3; return nothing)
-                gA[idx] == 3 && (gN[idx] = 4; return nothing)
-            elseif gB[idx] == 2
-                lifeA[idx] != +Inf && (gN[idx] = 1; return nothing)
-                gA[idx] == 1 && (gN[idx] = 1; return nothing)
-                gA[idx] == 2 && (gN[idx] = 4; return nothing)
-                gA[idx] == 3 && (gN[idx] = 4; return nothing)
-            end
-        end
+function compute_node_perfstate!(NUM_NODE, gA, gB, gN, lifeA, lifeB, idx)
+    if lifeA[idx] != +Inf
+        lifeB[idx] != +Inf && (gN[idx] = 0; return nothing)
+        gB[idx] == 1 && (gN[idx] = 3; return nothing)
+        gB[idx] == 2 && (gN[idx] = 1; return nothing)
+    elseif gA[idx] == 1
+        lifeB[idx] != +Inf && (gN[idx] = 1; return nothing)
+        gB[idx] == 1 && (gN[idx] = 5; return nothing)
+        gB[idx] == 2 && (gN[idx] = 1; return nothing)
+    elseif gA[idx] == 2
+        lifeB[idx] != +Inf && (gN[idx] = 2; return nothing)
+        gB[idx] == 1 && (gN[idx] = 3; return nothing)
+        gB[idx] == 2 && (gN[idx] = 4; return nothing)
+    elseif gA[idx] == 3
+        lifeB[idx] != +Inf && (gN[idx] = 4; return nothing)
+        gB[idx] == 1 && (gN[idx] = 4; return nothing)
+        gB[idx] == 2 && (gN[idx] = 4; return nothing)
+    end
     nothing
 end
 
