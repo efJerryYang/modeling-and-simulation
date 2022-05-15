@@ -73,14 +73,13 @@ function simulate(NUM_NODE::Int8, result::Result)
     gA = zeros(Int8, NUM_NODE)
     gB = zeros(Int8, NUM_NODE)
     gN = zeros(Int8, NUM_NODE)
-    gR = zeros(Int8, NUM_NODE)  # not used currently
     lifeA = zeros(NUM_NODE)
     lifeB = zeros(NUM_NODE)
 
     system_life = zeros(Float64, NUM_SYSTEM)
     reliability_counter = 0
     @inbounds for i = 1:NUM_SYSTEM
-        system_life[i] = simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
+        system_life[i] = simulate_variable_timestep!(NUM_NODE, gA, gB, gN, lifeA, lifeB)
         system_life[i] >= w && (reliability_counter += 1)
     end
 
@@ -92,8 +91,8 @@ function simulate(NUM_NODE::Int8, result::Result)
     return update_result(NUM_NODE, result, averagelife, reliability)
 end
 
-function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
-    master_node::Int8 = initialize!(NUM_NODE, gA, gB, gN, gR)
+function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, lifeA, lifeB)
+    master_node::Int8 = initialize!(NUM_NODE, gA, gB, gN)
 
     life_counter::Float64 = 0
     compute_switchstate!(NUM_NODE, gA, gB, lifeA, lifeB)
@@ -117,7 +116,7 @@ function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
         end
         compute_node_perfstate!(NUM_NODE, gA, gB, gN, lifeA, lifeB, idx)
 
-        master_node = compute_node_rolestate!(NUM_NODE, gN, gR, master_node)
+        master_node = compute_node_rolestate!(NUM_NODE, gN, master_node)
 
         Gsys::Int8 = compute_systemstate!(NUM_NODE, gN, master_node)
         if Gsys == 2 || Gsys == 3
@@ -131,15 +130,13 @@ function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, gR, lifeA, lifeB)
     life_counter = min(life_counter, LIFE_LIMIT)
 end
 
-function initialize!(NUM_NODE, gA, gB, gN, gR)
+function initialize!(NUM_NODE, gA, gB, gN)
     fill!(gA, 0)
     fill!(gB, 0)
 
     fill!(gN, 0)
-    fill!(gR, 0)
 
     master_node::Int8 = 1 # rand(1:NUM_NODE)
-    gR[master_node] = 1
     return master_node
 end
 
@@ -185,9 +182,8 @@ function ok_for_master(gNi)
     gNi == 5 && return false
 end
 
-function compute_node_rolestate!(NUM_NODE, gN, gR, master_node)
+function compute_node_rolestate!(NUM_NODE, gN,master_node)
     # role state transition process is based on the formula given above
-    # role vector: gR
     # node (performance) vector: gN
     if !ok_for_master(gN[master_node])
 
