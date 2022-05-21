@@ -2,7 +2,7 @@ tic
 main();
 toc
 function [C] = initializeConstants()
-    C.NUM_SYSTEM = 100000;
+    C.NUM_SYSTEM = 10000000;
     C.TIME_STEP = 1;
     C.LIFE_LIMIT = 200000;
     C.STATE_NUM_NODE = 6;
