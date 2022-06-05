@@ -2,4 +2,4 @@
 
 ## Content
 
-- `task2` A relatively complicated simulation problem
+A relatively complicated simulation problem from SJTU modeling and simulation coursework

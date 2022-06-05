@@ -20,6 +20,8 @@ PDN = C.PA2 * C.PB2 + C.PA3 * (C.PB0 + C.PB1 + C.PB2);
 
 availabilityVector(:,2) = computeAvailability(C, PPF, PMO, PSO, PFB, PDM, PDN);
 availabilityVector
+% xs = 
+plot(availabilityVector(3:20,1))
 function [C] = initializeConstants()
     C.NUM_SYSTEM = 100000;
     C.TIME_STEP = 30000;

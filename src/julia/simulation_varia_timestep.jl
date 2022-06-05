@@ -14,9 +14,9 @@ begin
     ## simulation
     # Random.seed!(10)
     const ibegin = 3
-    const iend = 20
+    const iend = 30
     ## system
-    const NUM_SYSTEM = 10_0000
+    const NUM_SYSTEM = 100_0000
     # const NUM_SYSTEM = 10_0000
     # const NUM_NODE = 10
     const TIME_STEP = 1               # 1 hour
@@ -36,6 +36,16 @@ begin
     const PB0 = exp(-λB * TIME_STEP)
     const PB1 = 0.45 * (1 - PB0)
     const PB2 = 0.55 * (1 - PB0)
+
+    # counter
+    QPF_counter = 0
+    QSO_counter = 0
+    QDM_counter = 0
+    QMO_counter = 0
+    QDN_counter = 0
+    QFB_counter = 0
+    # QPF::Int8 = QSO::Int8 = QDM::Int8 = QMO::Int8 = QDN::Int8 = QFB::Int8 = 0
+
     nothing
 end
 
@@ -70,6 +80,13 @@ function julia_main()
 end
 
 function simulate(NUM_NODE::Int8, result::Result)
+    global QPF_counter
+    global QSO_counter
+    global QDM_counter
+    global QMO_counter
+    global QDN_counter
+    global QFB_counter
+
     gA = zeros(Int8, NUM_NODE)
     gB = zeros(Int8, NUM_NODE)
     gN = zeros(Int8, NUM_NODE)
@@ -78,6 +95,12 @@ function simulate(NUM_NODE::Int8, result::Result)
 
     system_life = zeros(Float64, NUM_SYSTEM)
     reliability_counter = 0
+    QPF_counter = 0
+    QSO_counter = 0
+    QDM_counter = 0
+    QMO_counter = 0
+    QDN_counter = 0
+    QFB_counter = 0
     @inbounds for i = 1:NUM_SYSTEM
         system_life[i] = simulate_variable_timestep!(NUM_NODE, gA, gB, gN, lifeA, lifeB)
         system_life[i] >= w && (reliability_counter += 1)
@@ -85,13 +108,25 @@ function simulate(NUM_NODE::Int8, result::Result)
 
     averagelife = mean(system_life)
     reliability = reliability_counter / NUM_SYSTEM
-    @printf("NUM_NODE:%3d\tMTTF: %12.6f\t\tReliability: %7.3f%%\n", NUM_NODE, averagelife, reliability * 100)
-
+    @printf("NUM_NODE:%3d\tMTTF: %12.6f\tReliability: %7.3f%%\t", NUM_NODE, averagelife, reliability * 100)
+    @printf("QPF: %9.6f  QSO: %9.6f  QDM: %9.6f  QMO: %9.6f  QDN: %9.6f  QFB: %9.6f\n",
+        QPF_counter / NUM_SYSTEM / NUM_NODE,
+        QSO_counter / NUM_SYSTEM / NUM_NODE,
+        QDM_counter / NUM_SYSTEM / NUM_NODE,
+        QMO_counter / NUM_SYSTEM / NUM_NODE,
+        QDN_counter / NUM_SYSTEM / NUM_NODE,
+        QFB_counter / NUM_SYSTEM / NUM_NODE)
     # update return result
     return update_result(NUM_NODE, result, averagelife, reliability)
 end
 
 function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, lifeA, lifeB)
+    global QPF_counter
+    global QSO_counter
+    global QDM_counter
+    global QMO_counter
+    global QDN_counter
+    global QFB_counter
     master_node::Int8 = initialize!(NUM_NODE, gA, gB, gN)
 
     life_counter::Float64 = 0
@@ -125,8 +160,25 @@ function simulate_variable_timestep!(NUM_NODE, gA, gB, gN, lifeA, lifeB)
             life_counter = min_life
             break
         end
-
     end
+    QPF::Int8 = QSO::Int8 = QDM::Int8 = QMO::Int8 = QDN::Int8 = QFB::Int8 = 0
+
+    @inbounds for elem in gN
+        elem == 0 && (QPF += 1; continue)
+        elem == 1 && (QSO += 1; continue)
+        elem == 2 && (QDM += 1; continue)
+        elem == 3 && (QMO += 1; continue)
+        elem == 4 && (QDN += 1; continue)
+        elem == 5 && (QFB += 1; continue)
+    end
+
+    QPF > 0 && (QPF_counter += QPF)
+    QSO > 0 && (QSO_counter += QSO)
+    QDM > 0 && (QDM_counter += QDM)
+    QMO > 0 && (QMO_counter += QMO)
+    QDN > 0 && (QDN_counter += QDN)
+    QFB > 0 && (QFB_counter += QFB)
+
     life_counter = min(life_counter, LIFE_LIMIT)
 end
 
@@ -182,7 +234,7 @@ function ok_for_master(gNi)
     gNi == 5 && return false
 end
 
-function compute_node_rolestate!(NUM_NODE, gN,master_node)
+function compute_node_rolestate!(NUM_NODE, gN, master_node)
     # role state transition process is based on the formula given above
     # node (performance) vector: gN
     if !ok_for_master(gN[master_node])
